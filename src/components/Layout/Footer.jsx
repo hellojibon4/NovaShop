@@ -94,7 +94,7 @@ export default function Footer() {
             </h4>
             <ul className="space-y-2.5 text-sm text-slate-500 dark:text-slate-400">
               <li>
-                <Link to="/account-settings" className="hover:text-violet-600 dark:hover:text-violet-400 transition-colors">
+                <Link to="/contact" className="hover:text-violet-600 dark:hover:text-violet-400 transition-colors">
                   Contact Us
                 </Link>
               </li>

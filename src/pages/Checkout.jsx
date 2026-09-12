@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Lock,
@@ -10,14 +10,17 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
+import { createOrder } from '../services/orderService';
 
 export default function Checkout() {
   const { cartItems, subtotal, discount, shipping, total, appliedCoupon, clearCart } = useCart();
+  const { currentUser } = useAuth();
 
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [formData, setFormData] = useState({
-    fullName: 'Alina Putri',
-    email: 'alina.putri@novashop.com',
+    fullName: currentUser?.displayName || currentUser?.userName || 'Alina Putri',
+    email: currentUser?.email || 'alina.putri@novashop.com',
     address: '42 Orchid Boulevard, Suite 300',
     city: 'San Francisco',
     state: 'CA',
@@ -29,15 +32,38 @@ export default function Checkout() {
 
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (currentUser) {
+      setFormData((prev) => ({
+        ...prev,
+        fullName: currentUser.displayName || currentUser.userName || prev.fullName,
+        email: currentUser.email || prev.email
+      }));
+    }
+  }, [currentUser]);
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handlePlaceOrder = (e) => {
+  const handlePlaceOrder = async (e) => {
     e.preventDefault();
-    const newOrderNum = `NV-${Math.floor(100000 + Math.random() * 900000)}`;
-    setOrderNumber(newOrderNum);
+    setIsSubmitting(true);
+
+    const res = await createOrder(
+      currentUser?.uid || 'guest',
+      cartItems,
+      formData,
+      paymentMethod,
+      { subtotal, shipping, total }
+    );
+
+    setIsSubmitting(false);
+
+    const confirmedOrderId = res.orderId || `NV-${Math.floor(100000 + Math.random() * 900000)}`;
+    setOrderNumber(confirmedOrderId);
     setOrderPlaced(true);
 
     // Trigger confetti celebration
@@ -345,10 +371,11 @@ export default function Checkout() {
             {/* Place Order CTA */}
             <button
               type="submit"
-              className="w-full py-3.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-violet-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
+              disabled={isSubmitting}
+              className="w-full py-3.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 disabled:opacity-60 text-white font-bold text-sm rounded-xl shadow-lg shadow-violet-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
             >
               <Lock className="w-4 h-4" />
-              <span>Place Order (${total.toFixed(2)})</span>
+              <span>{isSubmitting ? 'Processing Order...' : `Place Order ($${total.toFixed(2)})`}</span>
             </button>
           </div>
         </div>

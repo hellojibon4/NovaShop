@@ -11,6 +11,7 @@ import {
   Package,
   Settings,
   LogOut,
+  LogIn,
   Sun,
   Moon,
   X
@@ -18,6 +19,7 @@ import {
 import { useWishlist } from '../../context/WishlistContext';
 import { useCart } from '../../context/CartContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import { products } from '../../data/products';
 
 export default function Header({ onOpenSidebar }) {
@@ -29,6 +31,7 @@ export default function Header({ onOpenSidebar }) {
   const { wishlistCount } = useWishlist();
   const { totalItemsCount, toggleCart } = useCart();
   const { isDark, toggleTheme } = useTheme();
+  const { currentUser, isAuthenticated, logout, openAuthModal } = useAuth();
   const navigate = useNavigate();
 
   const searchRef = useRef(null);
@@ -269,74 +272,96 @@ export default function Header({ onOpenSidebar }) {
             )}
           </div>
 
-          {/* User Profile Section (Alina Putri) with High Z-Index Dropdown */}
-          <div ref={profileRef} className="relative z-[90]">
+          {/* User Profile / Auth Section with High Z-Index Dropdown */}
+          {isAuthenticated && currentUser ? (
+            <div ref={profileRef} className="relative z-[90]">
+              <button
+                onClick={() => setShowProfileMenu(!showProfileMenu)}
+                type="button"
+                className="flex items-center gap-2 p-1 sm:px-2 py-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                {currentUser.avatar ? (
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.displayName || currentUser.userName || 'User'}
+                    className="w-8 h-8 rounded-full object-cover ring-2 ring-violet-500/30"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-violet-600 text-white font-bold text-xs flex items-center justify-center ring-2 ring-violet-500/30">
+                    {(currentUser.displayName || currentUser.userName || currentUser.email || 'U')[0].toUpperCase()}
+                  </div>
+                )}
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 hidden lg:inline max-w-[100px] truncate">
+                  {currentUser.displayName || currentUser.userName || 'Account'}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden lg:inline" />
+              </button>
+
+              {/* Profile Dropdown */}
+              {showProfileMenu && (
+                <div className="absolute right-0 top-full mt-2 w-60 bg-white dark:bg-[#151828] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] border border-slate-200 dark:border-slate-700/80 py-2 z-[110] transition-all animate-in fade-in slide-in-from-top-2 duration-200">
+                  {/* User Info Header */}
+                  <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800">
+                    <p className="text-sm font-extrabold text-slate-900 dark:text-white truncate">
+                      {currentUser.displayName || currentUser.userName || 'User'}
+                    </p>
+                    <p className="text-xs text-slate-400 truncate">{currentUser.email}</p>
+                  </div>
+
+                  {/* Navigation Items */}
+                  <div className="py-1.5 space-y-0.5">
+                    <Link
+                      to="/account-settings"
+                      onClick={() => setShowProfileMenu(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-violet-50 dark:hover:bg-violet-950/40 hover:text-violet-600 dark:hover:text-violet-300 transition-colors"
+                    >
+                      <User className="w-4 h-4 text-violet-500 shrink-0" />
+                      <span>My Profile</span>
+                    </Link>
+                    <Link
+                      to="/orders"
+                      onClick={() => setShowProfileMenu(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-violet-50 dark:hover:bg-violet-950/40 hover:text-violet-600 dark:hover:text-violet-300 transition-colors"
+                    >
+                      <Package className="w-4 h-4 text-violet-500 shrink-0" />
+                      <span>My Orders</span>
+                    </Link>
+                    <Link
+                      to="/account-settings"
+                      onClick={() => setShowProfileMenu(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-violet-50 dark:hover:bg-violet-950/40 hover:text-violet-600 dark:hover:text-violet-300 transition-colors"
+                    >
+                      <Settings className="w-4 h-4 text-violet-500 shrink-0" />
+                      <span>Account Settings</span>
+                    </Link>
+                  </div>
+
+                  {/* Log Out Button */}
+                  <div className="border-t border-slate-100 dark:border-slate-800 pt-1.5 mt-1">
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        logout();
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer text-left"
+                    >
+                      <LogOut className="w-4 h-4 text-rose-500 shrink-0" />
+                      <span>Log Out</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
             <button
-              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              onClick={() => openAuthModal('login')}
               type="button"
-              className="flex items-center gap-2 p-1 sm:px-2 py-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-violet-200 dark:border-violet-800/80 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950/40 text-xs font-bold transition-all cursor-pointer shrink-0"
             >
-              <img
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80"
-                alt="Alina Putri"
-                className="w-8 h-8 rounded-full object-cover ring-2 ring-violet-500/30"
-              />
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 hidden lg:inline">
-                Alina Putri
-              </span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden lg:inline" />
+              <LogIn className="w-4 h-4" />
+              <span>Sign In</span>
             </button>
-
-            {/* Profile Dropdown: Must open cleanly ABOVE the cart section */}
-            {showProfileMenu && (
-              <div className="absolute right-0 top-full mt-2 w-60 bg-white dark:bg-[#151828] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] border border-slate-200 dark:border-slate-700/80 py-2 z-[110] transition-all animate-in fade-in slide-in-from-top-2 duration-200">
-                {/* User Info Header */}
-                <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800">
-                  <p className="text-sm font-extrabold text-slate-900 dark:text-white">Alina Putri</p>
-                  <p className="text-xs text-slate-400">alina.putri@novashop.com</p>
-                </div>
-
-                {/* Navigation Items with Lucide Icons */}
-                <div className="py-1.5 space-y-0.5">
-                  <Link
-                    to="/account-settings"
-                    onClick={() => setShowProfileMenu(false)}
-                    className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-violet-50 dark:hover:bg-violet-950/40 hover:text-violet-600 dark:hover:text-violet-300 transition-colors"
-                  >
-                    <User className="w-4 h-4 text-violet-500 shrink-0" />
-                    <span>My Profile</span>
-                  </Link>
-                  <Link
-                    to="/orders"
-                    onClick={() => setShowProfileMenu(false)}
-                    className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-violet-50 dark:hover:bg-violet-950/40 hover:text-violet-600 dark:hover:text-violet-300 transition-colors"
-                  >
-                    <Package className="w-4 h-4 text-violet-500 shrink-0" />
-                    <span>My Orders</span>
-                  </Link>
-                  <Link
-                    to="/account-settings"
-                    onClick={() => setShowProfileMenu(false)}
-                    className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-violet-50 dark:hover:bg-violet-950/40 hover:text-violet-600 dark:hover:text-violet-300 transition-colors"
-                  >
-                    <Settings className="w-4 h-4 text-violet-500 shrink-0" />
-                    <span>Account Settings</span>
-                  </Link>
-                </div>
-
-                {/* Log Out Button */}
-                <div className="border-t border-slate-100 dark:border-slate-800 pt-1.5 mt-1">
-                  <button
-                    onClick={() => setShowProfileMenu(false)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer text-left"
-                  >
-                    <LogOut className="w-4 h-4 text-rose-500 shrink-0" />
-                    <span>Log Out</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* 🛍 My Cart (4) Section */}
           <button

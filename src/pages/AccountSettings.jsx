@@ -1,22 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings, Moon, Sun, Check } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function AccountSettings() {
   const { isDark, toggleTheme } = useTheme();
+  const { currentUser, updateUser } = useAuth();
   const [saved, setSaved] = useState(false);
   const [profile, setProfile] = useState({
-    name: 'Alina Putri',
-    email: 'alina.putri@novashop.com',
-    phone: '+1 (555) 234-5678',
+    name: currentUser?.displayName || currentUser?.userName || 'Alina Putri',
+    email: currentUser?.email || 'alina.putri@novashop.com',
+    phone: currentUser?.phone || '+1 (555) 234-5678',
     country: 'United States',
     orderAlerts: true,
     promoEmails: true,
     twoFactor: false
   });
 
-  const handleSave = (e) => {
+  useEffect(() => {
+    if (currentUser) {
+      setProfile((prev) => ({
+        ...prev,
+        name: currentUser.displayName || currentUser.userName || prev.name,
+        email: currentUser.email || prev.email,
+        phone: currentUser.phone || prev.phone
+      }));
+    }
+  }, [currentUser]);
+
+  const handleSave = async (e) => {
     e.preventDefault();
+    if (currentUser) {
+      await updateUser({
+        displayName: profile.name,
+        userName: profile.name,
+        phone: profile.phone
+      });
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };

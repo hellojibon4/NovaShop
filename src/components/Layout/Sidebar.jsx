@@ -201,7 +201,7 @@ export default function Sidebar({ isOpen, onClose }) {
         {/* Bottom Section: Support & Theme Switch */}
         <div className="pt-4 border-t border-slate-100 dark:border-slate-800/80 space-y-3">
           <Link
-            to="/account-settings"
+            to="/contact"
             onClick={() => onClose && onClose()}
             className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
           >
