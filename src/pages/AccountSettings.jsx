@@ -137,14 +137,14 @@ export default function AccountSettings() {
         </div>
         <h2 className="text-xl font-bold text-slate-900 dark:text-white">Account Settings</h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Please sign in to view and manage your profile details, shipping preferences, and security settings.
+          Please log in to view and manage your profile details, shipping preferences, and security settings.
         </p>
         <Link
           to="/login"
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold shadow-md shadow-violet-500/25 transition-all"
         >
           <LogIn className="w-4 h-4" />
-          <span>Sign In to Account</span>
+          <span>Login to Account</span>
         </Link>
       </div>
     );

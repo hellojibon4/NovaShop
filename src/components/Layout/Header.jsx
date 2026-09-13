@@ -359,7 +359,7 @@ export default function Header({ onOpenSidebar }) {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-violet-200 dark:border-violet-800/80 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950/40 text-xs font-bold transition-all cursor-pointer shrink-0"
             >
               <LogIn className="w-4 h-4" />
-              <span>Sign In</span>
+              <span>Login</span>
             </Link>
           )}
 

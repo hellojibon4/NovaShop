@@ -65,48 +65,51 @@ export const registerUser = async (email, password, userName, phone = '') => {
     }
 
     if (isFirebaseConfigured && auth) {
-      // Create user in Firebase Authentication
+      // 1. Create user in Firebase Authentication (only blocking security step)
       const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
-
-      // Update Firebase Auth Display Name
-      try {
-        await updateProfile(user, { displayName: userName.trim() });
-      } catch (profileErr) {
-        console.warn('Profile name update warning:', profileErr.message);
-      }
+      const cleanName = userName.trim();
+      const cleanPhone = phone ? phone.trim() : '';
 
       const userData = {
         uid: user.uid,
         email: user.email,
-        userName: userName.trim(),
-        displayName: userName.trim(),
-        phone: phone.trim(),
-        avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=7C3AED&color=fff`,
+        name: cleanName,
+        userName: cleanName,
+        displayName: cleanName,
+        phone: cleanPhone,
+        avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=7C3AED&color=fff`,
         createdAt: new Date().toISOString(),
         role: 'customer'
       };
 
-      // Save user profile in Firestore
-      if (db) {
-        try {
-          await setDoc(doc(db, 'users', user.uid), {
-            uid: user.uid,
-            name: userName.trim(),
-            email: email.trim(),
-            phone: phone ? phone.trim() : '',
-            createdAt: new Date().toISOString(),
-            role: 'customer',
-            userName: userName.trim(),
-            displayName: userName.trim(),
-            address: { street: '', city: '', country: '', zipCode: '' }
-          }, { merge: true });
-        } catch (firestoreErr) {
-          console.warn('Firestore user doc creation notice:', firestoreErr.message);
-        }
-      }
-
+      // Save locally immediately for instant session readiness
       localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(userData));
+
+      // 2. Perform profile update and Firestore document creation asynchronously in background
+      // This eliminates 3-5 seconds of network blocking latency!
+      Promise.allSettled([
+        updateProfile(user, { displayName: cleanName }).catch((err) =>
+          console.warn('Profile name update notice:', err.message)
+        ),
+        db
+          ? setDoc(
+              doc(db, 'users', user.uid),
+              {
+                uid: user.uid,
+                name: cleanName,
+                email: email.trim(),
+                phone: cleanPhone,
+                createdAt: new Date().toISOString(),
+                role: 'customer',
+                userName: cleanName,
+                displayName: cleanName,
+                address: { street: '', city: '', country: '', zipCode: '' }
+              },
+              { merge: true }
+            ).catch((err) => console.warn('Firestore user doc sync notice:', err.message))
+          : Promise.resolve()
+      ]);
 
       return {
         success: true,
@@ -164,29 +167,50 @@ export const loginUser = async (email, password) => {
       const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
 
-      let firestoreProfile = {};
-      if (db) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            firestoreProfile = userDoc.data();
-          }
-        } catch (e) {
-          console.warn('Firestore profile fetch warning:', e.message);
-        }
-      }
+      const cachedUser = getCurrentUser();
+      const displayName =
+        user.displayName ||
+        (cachedUser?.uid === user.uid ? (cachedUser.name || cachedUser.displayName) : '') ||
+        user.email.split('@')[0];
 
-      const displayName = firestoreProfile.displayName || firestoreProfile.userName || user.displayName || user.email.split('@')[0];
       const userData = {
         uid: user.uid,
         email: user.email,
+        name: displayName,
         userName: displayName,
         displayName: displayName,
-        phone: firestoreProfile.phone || '',
-        avatar: user.photoURL || firestoreProfile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=7C3AED&color=fff`
+        phone: (cachedUser?.uid === user.uid ? cachedUser.phone : '') || user.phoneNumber || '',
+        country: (cachedUser?.uid === user.uid ? cachedUser.country : '') || '',
+        avatar:
+          user.photoURL ||
+          (cachedUser?.uid === user.uid ? cachedUser.avatar : null) ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=7C3AED&color=fff`
       };
 
+      // Save locally immediately so UI can update in milliseconds
       localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(userData));
+
+      // Asynchronously fetch extra Firestore profile fields in background (NON-BLOCKING)
+      if (db) {
+        getDoc(doc(db, 'users', user.uid))
+          .then((userDoc) => {
+            if (userDoc.exists()) {
+              const data = userDoc.data();
+              const updatedName = data.name || data.displayName || data.userName || displayName;
+              const enriched = {
+                ...userData,
+                name: updatedName,
+                displayName: updatedName,
+                userName: updatedName,
+                phone: data.phone || userData.phone,
+                country: data.country || userData.country,
+                avatar: data.avatar || userData.avatar
+              };
+              localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(enriched));
+            }
+          })
+          .catch((e) => console.warn('Background profile enrichment notice:', e.message));
+      }
 
       return {
         success: true,
@@ -252,9 +276,13 @@ export const loginWithGoogle = async () => {
         phone: user.phoneNumber || ''
       };
 
+      localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(userData));
+
+      // Sync user doc to Firestore in the background (NON-BLOCKING)
       if (db) {
-        try {
-          await setDoc(doc(db, 'users', user.uid), {
+        setDoc(
+          doc(db, 'users', user.uid),
+          {
             uid: user.uid,
             name: userData.displayName,
             displayName: userData.displayName,
@@ -264,13 +292,11 @@ export const loginWithGoogle = async () => {
             avatar: user.photoURL,
             role: 'customer',
             lastLoginAt: new Date().toISOString()
-          }, { merge: true });
-        } catch (err) {
-          console.warn('Firestore Google user doc sync notice:', err.message);
-        }
+          },
+          { merge: true }
+        ).catch((err) => console.warn('Firestore Google user doc sync notice:', err.message));
       }
 
-      localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(userData));
       return { success: true, user: userData };
     } else {
       const demoUser = {
@@ -396,33 +422,56 @@ export const onAuthChange = (callback) => {
   if (isFirebaseConfigured && auth) {
     return onAuthStateChanged(auth, async (user) => {
       if (user) {
-        let firestoreProfile = {};
+        const cached = getCurrentUser();
+        const baseName =
+          user.displayName ||
+          (cached?.uid === user.uid ? (cached.name || cached.displayName) : '') ||
+          user.email.split('@')[0];
+
+        // 1. Immediately provide authenticated user state to React so UI loads with 0ms delay
+        const immediateUser = (cached && cached.uid === user.uid)
+          ? cached
+          : {
+              uid: user.uid,
+              email: user.email,
+              name: baseName,
+              userName: baseName,
+              displayName: baseName,
+              phone: user.phoneNumber || '',
+              country: '',
+              role: 'customer',
+              createdAt: user.metadata?.creationTime || new Date().toISOString(),
+              creationTime: user.metadata?.creationTime || new Date().toISOString(),
+              avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(baseName)}&background=7C3AED&color=fff`
+            };
+
+        localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(immediateUser));
+        callback(immediateUser);
+
+        // 2. Asynchronously enrich user profile from Firestore in background (NON-BLOCKING)
         if (db) {
           try {
             const userDoc = await getDoc(doc(db, 'users', user.uid));
             if (userDoc.exists()) {
-              firestoreProfile = userDoc.data();
+              const profile = userDoc.data();
+              const finalName = profile.name || profile.displayName || profile.userName || baseName;
+              const enrichedUser = {
+                ...immediateUser,
+                name: finalName,
+                userName: finalName,
+                displayName: finalName,
+                phone: profile.phone || immediateUser.phone || '',
+                country: profile.country || immediateUser.country || '',
+                role: profile.role || immediateUser.role || 'customer',
+                avatar: profile.avatar || profile.photoURL || immediateUser.avatar
+              };
+              localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(enrichedUser));
+              callback(enrichedUser);
             }
-          } catch {
-            // ignore
+          } catch (err) {
+            console.warn('Background Firestore profile sync note:', err.message);
           }
         }
-        const displayName = firestoreProfile.name || firestoreProfile.displayName || firestoreProfile.userName || user.displayName || user.email.split('@')[0];
-        const fullUser = {
-          uid: user.uid,
-          email: user.email,
-          name: displayName,
-          userName: displayName,
-          displayName: displayName,
-          phone: firestoreProfile.phone || user.phoneNumber || '',
-          country: firestoreProfile.country || '',
-          role: firestoreProfile.role || 'customer',
-          createdAt: firestoreProfile.createdAt || user.metadata?.creationTime || new Date().toISOString(),
-          creationTime: user.metadata?.creationTime || firestoreProfile.createdAt || new Date().toISOString(),
-          avatar: firestoreProfile.avatar || user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=7C3AED&color=fff`
-        };
-        localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(fullUser));
-        callback(fullUser);
       } else {
         // Firebase auth user is null -> Clear local storage & notify callback with null
         localStorage.removeItem(LOCAL_USER_KEY);

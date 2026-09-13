@@ -68,7 +68,7 @@ export default function Login() {
         setSuccess('Login successful! Redirecting...');
         setTimeout(() => {
           navigate(redirectPath, { replace: true });
-        }, 600);
+        }, 100);
       } else {
         setError(res.error || 'Incorrect email or password. Please try again.');
       }
@@ -91,7 +91,7 @@ export default function Login() {
         setSuccess('Signed in with Google! Redirecting...');
         setTimeout(() => {
           navigate(redirectPath, { replace: true });
-        }, 600);
+        }, 100);
       } else {
         setError(res.error || 'Failed to sign in with Google. Please try again.');
       }
@@ -161,7 +161,7 @@ export default function Login() {
               Welcome back to premier shopping.
             </h2>
             <p className="text-xs text-violet-100/90 leading-relaxed mt-3 max-w-sm">
-              Sign in to manage your orders, access your saved delivery addresses, and enjoy personalized discounts.
+              Log in to manage your orders, access your saved delivery addresses, and enjoy personalized discounts.
             </p>
           </div>
 
@@ -279,7 +279,7 @@ export default function Login() {
               </button>
             </div>
 
-            {/* Sign In Button */}
+            {/* Login Button */}
             <button
               type="submit"
               disabled={loading || googleLoading}
@@ -288,18 +288,18 @@ export default function Login() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Signing In...</span>
+                  <span>Logging in...</span>
                 </>
               ) : (
                 <>
-                  <span>Sign In</span>
+                  <span>Login</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
           </form>
 
-          {/* Social Sign In Divider */}
+          {/* Social Login Divider */}
           <div className="relative my-6 text-center">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200 dark:border-slate-800" />
@@ -346,14 +346,14 @@ export default function Login() {
             )}
           </button>
 
-          {/* Create Account Link */}
+          {/* Sign Up Link */}
           <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-6">
             Don't have an account yet?{' '}
             <Link
               to="/signup"
               className="font-bold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer"
             >
-              Create Account
+              Sign Up
             </Link>
           </p>
         </div>

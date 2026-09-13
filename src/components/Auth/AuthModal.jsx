@@ -108,7 +108,7 @@ export default function AuthModal() {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div 
+      <div
         className="relative w-full max-w-md bg-white dark:bg-[#151828] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-8 overflow-hidden transition-all"
         onClick={(e) => e.stopPropagation()}
       >
@@ -127,11 +127,11 @@ export default function AuthModal() {
             <Sparkles className="w-6 h-6" />
           </div>
           <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-            {authModalTab === 'login' ? 'Welcome to NovaShop' : 'Create an Account'}
+            {authModalTab === 'login' ? 'Welcome to NovaShop' : 'Sign Up'}
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            {authModalTab === 'login' 
-              ? 'Access your orders, saved addresses, and wishlist' 
+            {authModalTab === 'login'
+              ? 'Access your orders, saved addresses, and wishlist'
               : 'Join thousands of shoppers enjoying exclusive deals'}
           </p>
         </div>
@@ -145,13 +145,12 @@ export default function AuthModal() {
               setError('');
               setSuccess('');
             }}
-            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-              authModalTab === 'login'
+            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${authModalTab === 'login'
                 ? 'bg-white dark:bg-[#1f2338] text-violet-600 dark:text-violet-400 shadow-sm'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
+              }`}
           >
-            Sign In
+            Login
           </button>
           <button
             type="button"
@@ -160,13 +159,12 @@ export default function AuthModal() {
               setError('');
               setSuccess('');
             }}
-            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-              authModalTab === 'register'
+            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${authModalTab === 'register'
                 ? 'bg-white dark:bg-[#1f2338] text-violet-600 dark:text-violet-400 shadow-sm'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
+              }`}
           >
-            Create Account
+            Sign Up
           </button>
         </div>
 
@@ -245,7 +243,7 @@ export default function AuthModal() {
                 onClick={() => setIsResetMode(!isResetMode)}
                 className="text-[11px] font-medium text-slate-500 hover:text-violet-600 dark:hover:text-violet-400 hover:underline cursor-pointer"
               >
-                {isResetMode ? 'Back to Sign In' : 'Forgot Password?'}
+                {isResetMode ? 'Back to Login' : 'Forgot Password?'}
               </button>
             </div>
 
@@ -264,11 +262,11 @@ export default function AuthModal() {
                 disabled={loading}
                 className="w-full py-3 px-4 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-violet-500/25 transition-all cursor-pointer disabled:opacity-50"
               >
-                {loading ? 'Signing In...' : 'Sign In'}
+                {loading ? 'Logging in...' : 'Login'}
               </button>
             )}
 
-            {/* Social Sign In Divider */}
+            {/* Social Login Divider */}
             <div className="relative my-4 text-center">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-slate-200 dark:border-slate-800" />
@@ -389,7 +387,7 @@ export default function AuthModal() {
               disabled={loading}
               className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-violet-500/25 transition-all cursor-pointer disabled:opacity-50"
             >
-              {loading ? 'Creating Account...' : 'Register Account'}
+              {loading ? 'Signing Up...' : 'Sign Up'}
             </button>
 
             {/* Social Sign Up Divider */}

@@ -78,7 +78,7 @@ export default function Signup() {
         setSuccess('Account created successfully! Welcome to NovaShop.');
         setTimeout(() => {
           navigate('/', { replace: true });
-        }, 700);
+        }, 100);
       } else {
         setError(res.error || 'Failed to create account. Please try again.');
       }
@@ -101,7 +101,7 @@ export default function Signup() {
         setSuccess('Signed up with Google! Welcome to NovaShop.');
         setTimeout(() => {
           navigate('/', { replace: true });
-        }, 700);
+        }, 100);
       } else {
         setError(res.error || 'Failed to sign up with Google.');
       }
@@ -168,7 +168,7 @@ export default function Signup() {
               <Sparkles className="w-6 h-6" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-              Create an Account
+              Sign Up
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Join thousands of shoppers enjoying exclusive deals
@@ -268,7 +268,7 @@ export default function Signup() {
               </div>
             </div>
 
-            {/* Create Account Button */}
+            {/* Sign Up Button */}
             <button
               type="submit"
               disabled={loading || googleLoading}
@@ -277,11 +277,11 @@ export default function Signup() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Creating Account...</span>
+                  <span>Signing Up...</span>
                 </>
               ) : (
                 <>
-                  <span>Create Account</span>
+                  <span>Sign Up</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -335,14 +335,14 @@ export default function Signup() {
             )}
           </button>
 
-          {/* Sign In Link */}
+          {/* Login Link */}
           <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-5">
             Already have an account?{' '}
             <Link
               to="/login"
               className="font-bold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer"
             >
-              Sign In
+              Login
             </Link>
           </p>
         </div>
