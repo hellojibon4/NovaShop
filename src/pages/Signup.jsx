@@ -114,7 +114,7 @@ export default function Signup() {
   return (
     <div className="min-h-[85vh] flex items-center justify-center py-8 px-4 sm:px-6">
       <div className="w-full max-w-4xl bg-white dark:bg-[#151828] rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-2">
-        
+
         {/* Left Side: Brand Visual Panel */}
         <div className="hidden lg:flex flex-col justify-between p-10 bg-gradient-to-br from-purple-600 via-violet-600 to-pink-600 text-white relative overflow-hidden">
           <div className="absolute -right-16 -bottom-16 w-64 h-64 rounded-full bg-white/10 blur-2xl pointer-events-none" />
@@ -168,7 +168,7 @@ export default function Signup() {
               <Sparkles className="w-6 h-6" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-              Sign Up
+              Sign Up to <span className="text-pink-600">NovaShop</span>
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Join thousands of shoppers enjoying exclusive deals
@@ -268,7 +268,7 @@ export default function Signup() {
               </div>
             </div>
 
-            {/* Sign Up Button */}
+            {/* Create Account Button */}
             <button
               type="submit"
               disabled={loading || googleLoading}
@@ -277,11 +277,11 @@ export default function Signup() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Signing Up...</span>
+                  <span>Sign Up Now!</span>
                 </>
               ) : (
                 <>
-                  <span>Sign Up</span>
+                  <span>Sign Up Now!</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -335,14 +335,14 @@ export default function Signup() {
             )}
           </button>
 
-          {/* Login Link */}
+          {/* Sign In Link */}
           <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-5">
             Already have an account?{' '}
             <Link
               to="/login"
               className="font-bold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer"
             >
-              Login
+              Sign In
             </Link>
           </p>
         </div>
