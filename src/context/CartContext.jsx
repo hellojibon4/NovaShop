@@ -30,11 +30,15 @@ export function CartProvider({ children }) {
   const [cartItems, setCartItems] = useState(() => {
     try {
       const saved = localStorage.getItem('novashop_cart');
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) return JSON.parse(saved);
+      // If user has visited or session cleared, start empty
+      const hasVisited = localStorage.getItem('novashop_visited');
+      if (hasVisited) return [];
+      localStorage.setItem('novashop_visited', 'true');
+      return initialCartItems;
     } catch {
-      // fallback
+      return [];
     }
-    return initialCartItems;
   });
 
   const [appliedCoupon, setAppliedCoupon] = useState(() => {
@@ -44,12 +48,28 @@ export function CartProvider({ children }) {
     } catch {
       // fallback
     }
-    // Default SAVE10 applied initially for instant visual match
-    return couponsData[0];
+    return null;
   });
 
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
+
+  // Listen for global logout event to purge cart immediately
+  useEffect(() => {
+    const handleLogout = () => {
+      setCartItems([]);
+      setAppliedCoupon(null);
+      try {
+        localStorage.removeItem('novashop_cart');
+        localStorage.removeItem('novashop_coupon');
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener('novashop:logout', handleLogout);
+    return () => window.removeEventListener('novashop:logout', handleLogout);
+  }, []);
 
   useEffect(() => {
     try {
@@ -119,6 +139,13 @@ export function CartProvider({ children }) {
 
   const clearCart = () => {
     setCartItems([]);
+    setAppliedCoupon(null);
+    try {
+      localStorage.removeItem('novashop_cart');
+      localStorage.removeItem('novashop_coupon');
+    } catch {
+      // ignore
+    }
   };
 
   const applyCoupon = (codeStr) => {

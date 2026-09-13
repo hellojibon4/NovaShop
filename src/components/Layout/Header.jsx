@@ -31,7 +31,7 @@ export default function Header({ onOpenSidebar }) {
   const { wishlistCount } = useWishlist();
   const { totalItemsCount, toggleCart } = useCart();
   const { isDark, toggleTheme } = useTheme();
-  const { currentUser, isAuthenticated, logout, openAuthModal } = useAuth();
+  const { currentUser, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
 
   const searchRef = useRef(null);
@@ -280,19 +280,19 @@ export default function Header({ onOpenSidebar }) {
                 type="button"
                 className="flex items-center gap-2 p-1 sm:px-2 py-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
-                {currentUser.avatar ? (
+                {currentUser.avatar || currentUser.photoURL ? (
                   <img
-                    src={currentUser.avatar}
-                    alt={currentUser.displayName || currentUser.userName || 'User'}
+                    src={currentUser.avatar || currentUser.photoURL}
+                    alt={currentUser.name || currentUser.displayName || currentUser.userName || 'User'}
                     className="w-8 h-8 rounded-full object-cover ring-2 ring-violet-500/30"
                   />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-violet-600 text-white font-bold text-xs flex items-center justify-center ring-2 ring-violet-500/30">
-                    {(currentUser.displayName || currentUser.userName || currentUser.email || 'U')[0].toUpperCase()}
+                    {(currentUser.name || currentUser.displayName || currentUser.userName || currentUser.email || 'U')[0].toUpperCase()}
                   </div>
                 )}
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200 hidden lg:inline max-w-[100px] truncate">
-                  {currentUser.displayName || currentUser.userName || 'Account'}
+                  {currentUser.name || currentUser.displayName || currentUser.userName || 'Account'}
                 </span>
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden lg:inline" />
               </button>
@@ -303,7 +303,7 @@ export default function Header({ onOpenSidebar }) {
                   {/* User Info Header */}
                   <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800">
                     <p className="text-sm font-extrabold text-slate-900 dark:text-white truncate">
-                      {currentUser.displayName || currentUser.userName || 'User'}
+                      {currentUser.name || currentUser.displayName || currentUser.userName || 'User'}
                     </p>
                     <p className="text-xs text-slate-400 truncate">{currentUser.email}</p>
                   </div>
@@ -339,9 +339,10 @@ export default function Header({ onOpenSidebar }) {
                   {/* Log Out Button */}
                   <div className="border-t border-slate-100 dark:border-slate-800 pt-1.5 mt-1">
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         setShowProfileMenu(false);
-                        logout();
+                        await logout();
+                        navigate('/login', { replace: true });
                       }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer text-left"
                     >
@@ -353,14 +354,13 @@ export default function Header({ onOpenSidebar }) {
               )}
             </div>
           ) : (
-            <button
-              onClick={() => openAuthModal('login')}
-              type="button"
+            <Link
+              to="/login"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-violet-200 dark:border-violet-800/80 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950/40 text-xs font-bold transition-all cursor-pointer shrink-0"
             >
               <LogIn className="w-4 h-4" />
               <span>Sign In</span>
-            </button>
+            </Link>
           )}
 
           {/* 🛍 My Cart (4) Section */}

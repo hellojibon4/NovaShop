@@ -1,4 +1,4 @@
-// সম্পূর্ণ অথেন্টিকেশন সার্ভিস (Dual-mode: Firebase + Local Demo Storage Fallback)
+// সম্পূর্ণ অথেন্টিকেশন সার্ভিস (Firebase Authentication + Firestore + Local Sync)
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -9,11 +9,37 @@ import {
   GoogleAuthProvider,
   signInWithPopup
 } from 'firebase/auth';
-import { collection, addDoc, query, where, getDocs, updateDoc, doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db, isFirebaseConfigured } from '../config/firebaseConfig';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth, db, storage, isFirebaseConfigured } from '../config/firebaseConfig.js';
 
 const LOCAL_USER_KEY = 'novashop_current_user';
 const LOCAL_USERS_DB = 'novashop_registered_users';
+
+// Firebase Auth Error Translator
+export const getFriendlyErrorMessage = (error) => {
+  const code = error?.code || '';
+  switch (code) {
+    case 'auth/email-already-in-use':
+      return 'এই ইমেইলটি ইতিমধ্যে ব্যবহৃত হয়েছে। অনুগ্রহ করে লগইন করুন। (Email is already registered)';
+    case 'auth/invalid-email':
+      return 'ইমেইল অ্যাড্রেসটি সঠিক নয়। (Invalid email address)';
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'ইমেইল অথবা পাসওয়ার্ড সঠিক নয়। (Incorrect email or password)';
+    case 'auth/weak-password':
+      return 'পাসওয়ার্ড অন্তত ৬ অক্ষরের হতে হবে। (Password must be at least 6 characters)';
+    case 'auth/popup-closed-by-user':
+      return 'গুগল সাইন-ইন উইন্ডো বন্ধ করা হয়েছে। (Google popup closed)';
+    case 'auth/network-request-failed':
+      return 'ইন্টারনেট কানেকশন চেক করুন। (Network request failed)';
+    case 'auth/too-many-requests':
+      return 'অনেকবার চেষ্টা করা হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর চেষ্টা করুন। (Too many attempts. Try again later)';
+    default:
+      return error?.message || 'লগইন বা রেজিস্ট্রেশন সম্পন্ন করা যায়নি।';
+  }
+};
 
 const getStoredUsers = () => {
   try {
@@ -31,50 +57,67 @@ const saveStoredUsers = (users) => {
   }
 };
 
-// ১. ইউজার রেজিস্ট্রেশন করা
+// ১. ইউজার রেজিস্ট্রেশন করা (Firebase Auth + Firestore)
 export const registerUser = async (email, password, userName, phone = '') => {
   try {
     if (!email || !password || !userName) {
-      return { success: false, error: 'Name, email, and password are required' };
+      return { success: false, error: 'নাম, ইমেইল এবং পাসওয়ার্ড আবশ্যক।' };
     }
 
-    if (isFirebaseConfigured && auth && db) {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    if (isFirebaseConfigured && auth) {
+      // Create user in Firebase Authentication
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
 
-      await updateProfile(user, { displayName: userName });
-
-      await setDoc(doc(db, 'users', user.uid), {
-        uid: user.uid,
-        email: email,
-        userName: userName,
-        phone: phone,
-        createdAt: new Date().toISOString(),
-        role: 'customer',
-        address: { street: '', city: '', country: '', zipCode: '' }
-      });
+      // Update Firebase Auth Display Name
+      try {
+        await updateProfile(user, { displayName: userName.trim() });
+      } catch (profileErr) {
+        console.warn('Profile name update warning:', profileErr.message);
+      }
 
       const userData = {
         uid: user.uid,
         email: user.email,
-        userName: userName,
-        displayName: userName,
-        phone: phone,
-        avatar: user.photoURL || null
+        userName: userName.trim(),
+        displayName: userName.trim(),
+        phone: phone.trim(),
+        avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=7C3AED&color=fff`,
+        createdAt: new Date().toISOString(),
+        role: 'customer'
       };
+
+      // Save user profile in Firestore
+      if (db) {
+        try {
+          await setDoc(doc(db, 'users', user.uid), {
+            uid: user.uid,
+            name: userName.trim(),
+            email: email.trim(),
+            phone: phone ? phone.trim() : '',
+            createdAt: new Date().toISOString(),
+            role: 'customer',
+            userName: userName.trim(),
+            displayName: userName.trim(),
+            address: { street: '', city: '', country: '', zipCode: '' }
+          }, { merge: true });
+        } catch (firestoreErr) {
+          console.warn('Firestore user doc creation notice:', firestoreErr.message);
+        }
+      }
 
       localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(userData));
 
       return {
         success: true,
         user: userData,
-        message: 'Registration successful!'
+        message: 'রেজিস্ট্রেশন সফল হয়েছে!'
       };
     } else {
-      // Local fallback mode
+      // Local fallback mode (if Firebase not configured)
       const users = getStoredUsers();
       if (users.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
-        return { success: false, error: 'Email is already registered. Please login.' };
+        return { success: false, error: 'এই ইমেইলটি ইতিমধ্যে ব্যবহৃত হয়েছে। অনুগ্রহ করে লগইন করুন।' };
       }
 
       const newUser = {
@@ -83,8 +126,8 @@ export const registerUser = async (email, password, userName, phone = '') => {
         userName: userName.trim(),
         displayName: userName.trim(),
         phone: phone.trim(),
-        password: password, // Note: local demo only
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
+        password: password,
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=7C3AED&color=fff`,
         createdAt: new Date().toISOString()
       };
 
@@ -98,48 +141,49 @@ export const registerUser = async (email, password, userName, phone = '') => {
       return {
         success: true,
         user: sessionUser,
-        message: 'Registration successful! (Demo Storage)'
+        message: 'রেজিস্ট্রেশন সফল হয়েছে!'
       };
     }
   } catch (error) {
     console.error('Registration error:', error);
     return {
       success: false,
-      error: error.message || 'Failed to register account'
+      error: getFriendlyErrorMessage(error)
     };
   }
 };
 
-// ২. ইউজার লগইন করা
+// ২. ইউজার লগইন করা (Firebase Auth + Firestore Profile fetch)
 export const loginUser = async (email, password) => {
   try {
     if (!email || !password) {
-      return { success: false, error: 'Email and password are required' };
+      return { success: false, error: 'ইমেইল এবং পাসওয়ার্ড আবশ্যক।' };
     }
 
     if (isFirebaseConfigured && auth) {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
 
       let firestoreProfile = {};
-      try {
-        if (db) {
+      if (db) {
+        try {
           const userDoc = await getDoc(doc(db, 'users', user.uid));
           if (userDoc.exists()) {
             firestoreProfile = userDoc.data();
           }
+        } catch (e) {
+          console.warn('Firestore profile fetch warning:', e.message);
         }
-      } catch (e) {
-        console.warn('Could not fetch firestore profile:', e);
       }
 
+      const displayName = firestoreProfile.displayName || firestoreProfile.userName || user.displayName || user.email.split('@')[0];
       const userData = {
         uid: user.uid,
         email: user.email,
-        userName: firestoreProfile.userName || user.displayName || user.email.split('@')[0],
-        displayName: user.displayName || firestoreProfile.userName || user.email.split('@')[0],
+        userName: displayName,
+        displayName: displayName,
         phone: firestoreProfile.phone || '',
-        avatar: user.photoURL || null
+        avatar: user.photoURL || firestoreProfile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=7C3AED&color=fff`
       };
 
       localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(userData));
@@ -147,7 +191,7 @@ export const loginUser = async (email, password) => {
       return {
         success: true,
         user: userData,
-        message: 'Login successful!'
+        message: 'লগইন সফল হয়েছে!'
       };
     } else {
       // Local fallback mode
@@ -157,7 +201,6 @@ export const loginUser = async (email, password) => {
       );
 
       if (!matched) {
-        // Allow fallback default login for demo testing if Alina Putri is requested
         if (email.toLowerCase() === 'alina.putri@novashop.com' || email.toLowerCase() === 'demo@novashop.com') {
           const demoUser = {
             uid: 'demo-alina-1',
@@ -168,9 +211,9 @@ export const loginUser = async (email, password) => {
             avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80'
           };
           localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(demoUser));
-          return { success: true, user: demoUser, message: 'Logged in as Demo User' };
+          return { success: true, user: demoUser, message: 'লগইন সফল হয়েছে!' };
         }
-        return { success: false, error: 'Invalid email or password' };
+        return { success: false, error: 'ইমেইল অথবা পাসওয়ার্ড সঠিক নয়।' };
       }
 
       const sessionUser = { ...matched };
@@ -180,19 +223,19 @@ export const loginUser = async (email, password) => {
       return {
         success: true,
         user: sessionUser,
-        message: 'Login successful!'
+        message: 'লগইন সফল হয়েছে!'
       };
     }
   } catch (error) {
     console.error('Login error:', error);
     return {
       success: false,
-      error: error.message || 'Failed to login'
+      error: getFriendlyErrorMessage(error)
     };
   }
 };
 
-// ৩. গুগল লগইন করা
+// ৩. গুগল লগইন করা (Firebase Auth Google Popup + Firestore Sync)
 export const loginWithGoogle = async () => {
   try {
     if (isFirebaseConfigured && auth) {
@@ -204,15 +247,32 @@ export const loginWithGoogle = async () => {
         uid: user.uid,
         email: user.email,
         userName: user.displayName || user.email.split('@')[0],
-        displayName: user.displayName,
-        avatar: user.photoURL
+        displayName: user.displayName || user.email.split('@')[0],
+        avatar: user.photoURL,
+        phone: user.phoneNumber || ''
       };
 
-      localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(userData));
+      if (db) {
+        try {
+          await setDoc(doc(db, 'users', user.uid), {
+            uid: user.uid,
+            name: userData.displayName,
+            displayName: userData.displayName,
+            userName: userData.userName,
+            email: user.email,
+            phone: user.phoneNumber || '',
+            avatar: user.photoURL,
+            role: 'customer',
+            lastLoginAt: new Date().toISOString()
+          }, { merge: true });
+        } catch (err) {
+          console.warn('Firestore Google user doc sync notice:', err.message);
+        }
+      }
 
+      localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(userData));
       return { success: true, user: userData };
     } else {
-      // Demo Google login simulation
       const demoUser = {
         uid: 'google-demo-' + Date.now(),
         email: 'google.user@novashop.com',
@@ -224,7 +284,8 @@ export const loginWithGoogle = async () => {
       return { success: true, user: demoUser };
     }
   } catch (error) {
-    return { success: false, error: error.message };
+    console.error('Google login error:', error);
+    return { success: false, error: getFriendlyErrorMessage(error) };
   }
 };
 
@@ -234,11 +295,34 @@ export const logoutUser = async () => {
     if (isFirebaseConfigured && auth) {
       await signOut(auth);
     }
-    localStorage.removeItem(LOCAL_USER_KEY);
-    return { success: true, message: 'Logged out successfully' };
   } catch (error) {
-    return { success: false, error: error.message };
+    console.warn('Firebase signOut notice:', error.message);
+  } finally {
+    // 1. Purge active user, session, cart, wishlist, addresses, orders, and coupon data
+    try {
+      localStorage.removeItem(LOCAL_USER_KEY);
+      localStorage.removeItem('novashop_cart');
+      localStorage.removeItem('novashop_wishlist');
+      localStorage.removeItem('novashop_coupon');
+      localStorage.removeItem('novashop_user_addresses');
+      localStorage.removeItem('novashop_user_orders');
+    } catch (e) {
+      console.warn('localStorage clear warning:', e.message);
+    }
+
+    // 2. Clear all sessionStorage
+    try {
+      sessionStorage.clear();
+    } catch {
+      // ignore
+    }
+
+    // 3. Broadcast global logout event to all in-memory context stores
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('novashop:logout'));
+    }
   }
+  return { success: true, message: 'সফলভাবে লগআউট হয়েছে' };
 };
 
 // ৫. বর্তমান ইউজার পাওয়া
@@ -256,7 +340,7 @@ export const getCurrentUser = () => {
       uid: u.uid,
       email: u.email,
       userName: u.displayName || u.email.split('@')[0],
-      displayName: u.displayName,
+      displayName: u.displayName || u.email.split('@')[0],
       avatar: u.photoURL
     };
   }
@@ -271,11 +355,23 @@ export const updateUserProfile = async (userId, data) => {
     const updated = { ...current, ...data };
     localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(updated));
 
-    if (isFirebaseConfigured && db && userId) {
-      await updateDoc(doc(db, 'users', userId), data);
+    if (isFirebaseConfigured && auth && auth.currentUser && data.displayName) {
+      try {
+        await updateProfile(auth.currentUser, { displayName: data.displayName });
+      } catch (e) {
+        console.warn('Auth displayName update warning:', e.message);
+      }
     }
 
-    return { success: true, user: updated, message: 'Profile updated successfully' };
+    if (isFirebaseConfigured && db && userId) {
+      try {
+        await setDoc(doc(db, 'users', userId), data, { merge: true });
+      } catch (err) {
+        console.warn('Firestore profile update warning:', err.message);
+      }
+    }
+
+    return { success: true, user: updated, message: 'প্রোফাইল সফলভাবে আপডেট হয়েছে' };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -284,38 +380,126 @@ export const updateUserProfile = async (userId, data) => {
 // ৭. পাসওয়ার্ড রিসেট করা
 export const resetPassword = async (email) => {
   try {
+    if (!email) return { success: false, error: 'অনুগ্রহ করে আপনার ইমেইল লিখুন।' };
     if (isFirebaseConfigured && auth) {
       await sendPasswordResetEmail(auth, email);
-      return { success: true, message: 'Password reset link sent to your email.' };
+      return { success: true, message: 'পাসওয়ার্ড রিসেট লিংক আপনার ইমেইলে পাঠানো হয়েছে।' };
     }
-    return { success: true, message: 'Password reset instructions sent (Demo mode).' };
+    return { success: true, message: 'পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে।' };
   } catch (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: getFriendlyErrorMessage(error) };
   }
 };
 
 // ৮. অথ স্টেট চেঞ্জ লিসেনার
 export const onAuthChange = (callback) => {
   if (isFirebaseConfigured && auth) {
-    return onAuthStateChanged(auth, (user) => {
+    return onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const stored = getCurrentUser();
-        callback(stored || {
+        let firestoreProfile = {};
+        if (db) {
+          try {
+            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            if (userDoc.exists()) {
+              firestoreProfile = userDoc.data();
+            }
+          } catch {
+            // ignore
+          }
+        }
+        const displayName = firestoreProfile.name || firestoreProfile.displayName || firestoreProfile.userName || user.displayName || user.email.split('@')[0];
+        const fullUser = {
           uid: user.uid,
           email: user.email,
-          userName: user.displayName || user.email.split('@')[0],
-          displayName: user.displayName,
-          avatar: user.photoURL
-        });
+          name: displayName,
+          userName: displayName,
+          displayName: displayName,
+          phone: firestoreProfile.phone || user.phoneNumber || '',
+          country: firestoreProfile.country || '',
+          role: firestoreProfile.role || 'customer',
+          createdAt: firestoreProfile.createdAt || user.metadata?.creationTime || new Date().toISOString(),
+          creationTime: user.metadata?.creationTime || firestoreProfile.createdAt || new Date().toISOString(),
+          avatar: firestoreProfile.avatar || user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=7C3AED&color=fff`
+        };
+        localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(fullUser));
+        callback(fullUser);
       } else {
-        const local = getCurrentUser();
-        // If not in Firebase but in local storage, pass local
-        callback(local);
+        // Firebase auth user is null -> Clear local storage & notify callback with null
+        localStorage.removeItem(LOCAL_USER_KEY);
+        callback(null);
       }
     });
   } else {
-    // In local mode, immediately notify with saved local user
     callback(getCurrentUser());
     return () => {};
   }
 };
+
+// ৯. ইউজারের প্রোফাইল ছবি Firebase Storage-এ আপলোড করা
+// Image path: profile-images/{uid}/profile.jpg
+export const uploadProfileImage = async (userId, file) => {
+  try {
+    if (!userId) return { success: false, error: 'User ID is required' };
+    if (!file) return { success: false, error: 'No image file provided' };
+
+    let downloadURL = '';
+
+    if (isFirebaseConfigured && storage) {
+      // Requested exact storage path: profile-images/{uid}/profile.jpg
+      const imageRef = ref(storage, `profile-images/${userId}/profile.jpg`);
+      const snapshot = await uploadBytes(imageRef, file, {
+        contentType: file.type || 'image/jpeg'
+      });
+      downloadURL = await getDownloadURL(snapshot.ref);
+    } else {
+      // Local fallback blob URL
+      downloadURL = URL.createObjectURL(file);
+    }
+
+    // 1. Update Firebase Auth user photoURL
+    if (isFirebaseConfigured && auth && auth.currentUser) {
+      try {
+        await updateProfile(auth.currentUser, { photoURL: downloadURL });
+      } catch (e) {
+        console.warn('Auth photoURL update warning:', e.message);
+      }
+    }
+
+    // 2. Update Firestore users/{userId}
+    if (isFirebaseConfigured && db && userId) {
+      try {
+        await setDoc(doc(db, 'users', userId), {
+          avatar: downloadURL,
+          photoURL: downloadURL,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Firestore avatar update warning:', err.message);
+      }
+    }
+
+    // 3. Update local session storage
+    const current = getCurrentUser() || {};
+    const updated = {
+      ...current,
+      avatar: downloadURL,
+      photoURL: downloadURL
+    };
+    localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(updated));
+
+    return {
+      success: true,
+      avatar: downloadURL,
+      photoURL: downloadURL,
+      user: updated,
+      message: 'Profile image updated successfully!'
+    };
+  } catch (error) {
+    console.error('Error in uploadProfileImage:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to upload profile image'
+    };
+  }
+};
+

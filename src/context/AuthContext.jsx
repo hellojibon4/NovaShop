@@ -5,7 +5,10 @@ import {
   registerUser,
   logoutUser,
   updateUserProfile,
-  onAuthChange
+  onAuthChange,
+  loginWithGoogle,
+  resetPassword,
+  uploadProfileImage
 } from '../services/authService';
 
 const AuthContext = createContext(null);
@@ -47,16 +50,35 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    setCurrentUser(null);
     const res = await logoutUser();
-    if (res.success) {
-      setCurrentUser(null);
+    return res;
+  };
+
+  const googleLogin = async () => {
+    const res = await loginWithGoogle();
+    if (res.success && res.user) {
+      setCurrentUser(res.user);
     }
     return res;
+  };
+
+  const forgotPassword = async (email) => {
+    return await resetPassword(email);
   };
 
   const updateUser = async (data) => {
     if (!currentUser) return { success: false, error: 'Not logged in' };
     const res = await updateUserProfile(currentUser.uid, data);
+    if (res.success && res.user) {
+      setCurrentUser(res.user);
+    }
+    return res;
+  };
+
+  const uploadAvatar = async (file) => {
+    if (!currentUser) return { success: false, error: 'Not logged in' };
+    const res = await uploadProfileImage(currentUser.uid, file);
     if (res.success && res.user) {
       setCurrentUser(res.user);
     }
@@ -80,6 +102,9 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     updateUser,
+    uploadAvatar,
+    googleLogin,
+    forgotPassword,
     isAuthModalOpen,
     authModalTab,
     openAuthModal,

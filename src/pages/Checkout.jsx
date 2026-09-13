@@ -12,6 +12,7 @@ import confetti from 'canvas-confetti';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { createOrder } from '../services/orderService';
+import { getUserAddresses } from '../services/addressService';
 
 export default function Checkout() {
   const { cartItems, subtotal, discount, shipping, total, appliedCoupon, clearCart } = useCart();
@@ -19,12 +20,12 @@ export default function Checkout() {
 
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [formData, setFormData] = useState({
-    fullName: currentUser?.displayName || currentUser?.userName || 'Alina Putri',
-    email: currentUser?.email || 'alina.putri@novashop.com',
-    address: '42 Orchid Boulevard, Suite 300',
-    city: 'San Francisco',
-    state: 'CA',
-    zip: '94107',
+    fullName: currentUser?.name || currentUser?.displayName || currentUser?.userName || '',
+    email: currentUser?.email || '',
+    address: '',
+    city: '',
+    state: '',
+    zip: '',
     cardNumber: '•••• •••• •••• 4242',
     expDate: '08/28',
     cvv: '921'
@@ -38,9 +39,26 @@ export default function Checkout() {
     if (currentUser) {
       setFormData((prev) => ({
         ...prev,
-        fullName: currentUser.displayName || currentUser.userName || prev.fullName,
+        fullName: currentUser.name || currentUser.displayName || currentUser.userName || prev.fullName,
         email: currentUser.email || prev.email
       }));
+
+      // Load user's saved default address from Firestore
+      getUserAddresses(currentUser.uid).then((res) => {
+        if (res.success && res.addresses && res.addresses.length > 0) {
+          const defaultAddr = res.addresses.find((a) => a.isDefault) || res.addresses[0];
+          if (defaultAddr && defaultAddr.street) {
+            setFormData((prev) => ({
+              ...prev,
+              fullName: defaultAddr.name || prev.fullName,
+              address: defaultAddr.street || prev.address,
+              city: defaultAddr.city || prev.city,
+              state: defaultAddr.state || prev.state,
+              zip: defaultAddr.zip || prev.zip
+            }));
+          }
+        }
+      });
     }
   }, [currentUser]);
 

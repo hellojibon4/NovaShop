@@ -1,13 +1,14 @@
-// মেসেজিং সার্ভিস - গ্রাহক সাপোর্ট ও যোগাযোগ ফর্ম ম্যানেজমেন্ট
+// মেসেজিং ও গ্রাহক সাপোর্ট সার্ভিস (Firebase Firestore + Local Storage Sync)
 import {
   collection,
   addDoc,
   getDocs,
   query,
   where,
-  orderBy
+  setDoc,
+  doc
 } from 'firebase/firestore';
-import { db, isFirebaseConfigured } from '../config/firebaseConfig';
+import { db, isFirebaseConfigured } from '../config/firebaseConfig.js';
 
 const LOCAL_MESSAGES_KEY = 'novashop_contact_messages';
 
@@ -27,14 +28,14 @@ const saveStoredMessages = (msgs) => {
   }
 };
 
-// ১. স্প্যাম চেক
+// ১. স্প্যাম ফিল্টারিং (৫ মিনিটে ৪ টির বেশি মেসেজ পাঠানো প্রতিরোধ)
 export const checkSpam = async (email) => {
   const msgs = getStoredMessages();
   const fiveMinAgo = Date.now() - 5 * 60 * 1000;
-  return msgs.filter(m => m.email.toLowerCase() === email.toLowerCase() && m.timestamp > fiveMinAgo);
+  return msgs.filter(m => m.email?.toLowerCase() === email.toLowerCase() && m.timestamp > fiveMinAgo);
 };
 
-// ২. নতুন মেসেজ পাঠানো
+// ২. নতুন মেসেজ পাঠানো এবং Firestore-এ সেভ করা
 export const sendMessage = async (messageData) => {
   try {
     if (!messageData.name || !messageData.email || !messageData.message) {
@@ -48,42 +49,44 @@ export const sendMessage = async (messageData) => {
     if (recent.length >= 4) {
       return {
         success: false,
-        error: 'আপনি খুব দ্রুত অনেকগুলো মেসেজ পাঠিয়েছেন। অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন।'
+        error: 'আপনি খুব দ্রুত অনেকগুলো মেসেজ পাঠিয়েছেন। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।'
       };
     }
 
+    const messageId = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
     const messageRecord = {
-      id: 'msg-' + Date.now(),
+      id: messageId,
       name: messageData.name.trim(),
       email: messageData.email.trim(),
       phone: messageData.phone ? messageData.phone.trim() : '',
       subject: messageData.subject ? messageData.subject.trim() : 'Customer Inquiry',
       message: messageData.message.trim(),
       timestamp: Date.now(),
-      dateFormatted: new Date().toLocaleString(),
+      createdAt: new Date().toISOString(),
+      dateFormatted: new Date().toLocaleString('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      }),
       status: 'unread'
     };
 
-    // Save locally
+    // Save locally for instant UI feedback
     const existing = getStoredMessages();
     saveStoredMessages([messageRecord, ...existing]);
 
-    // Save to Firestore if configured
+    // Save to Firestore Database `messages` collection
     if (isFirebaseConfigured && db) {
       try {
-        const docRef = await addDoc(collection(db, 'messages'), {
-          ...messageRecord,
-          createdAt: new Date()
-        });
-        messageRecord.firestoreId = docRef.id;
-      } catch (e) {
-        console.warn('Firestore message save failed, cached locally:', e.message);
+        await setDoc(doc(db, 'messages', messageId), messageRecord);
+        console.info(`✅ NovaShop: Message ${messageId} saved to Firestore successfully`);
+      } catch (firestoreErr) {
+        console.warn('Firestore message save note (cached locally):', firestoreErr.message);
       }
     }
 
     return {
       success: true,
-      messageId: messageRecord.id,
+      messageId: messageId,
       message: 'আপনার মেসেজ সফলভাবে পাঠানো হয়েছে! আমাদের টিম শীঘ্রই আপনার সাথে যোগাযোগ করবে।'
     };
   } catch (error) {
@@ -95,13 +98,37 @@ export const sendMessage = async (messageData) => {
   }
 };
 
-// ৩. ব্যবহারকারীর পূর্বের মেসেজগুলো দেখা
+// ৩. ব্যবহারকারীর পূর্বের মেসেজগুলো লোড করা
 export const getUserMessages = async (email) => {
   try {
+    let firestoreMsgs = [];
+
+    if (isFirebaseConfigured && db && email) {
+      try {
+        const q = query(
+          collection(db, 'messages'),
+          where('email', '==', email.trim().toLowerCase())
+        );
+        const snap = await getDocs(q);
+        snap.forEach(docSnap => {
+          firestoreMsgs.push(docSnap.data());
+        });
+      } catch (err) {
+        console.warn('Firestore messages query notice:', err.message);
+      }
+    }
+
     const all = getStoredMessages();
+    const localMatches = all.filter(m => m.email?.toLowerCase() === email.toLowerCase());
+
+    const map = new Map();
+    [...firestoreMsgs, ...localMatches].forEach(m => {
+      if (m.id && !map.has(m.id)) map.set(m.id, m);
+    });
+
     return {
       success: true,
-      messages: all.filter(m => m.email.toLowerCase() === email.toLowerCase())
+      messages: Array.from(map.values())
     };
   } catch (error) {
     return {

@@ -1,82 +1,32 @@
-// অর্ডার ম্যানেজমেন্ট সার্ভিস
+// সম্পূর্ণ অর্ডার ম্যানেজমেন্ট সার্ভিস (Firebase Firestore + Local Storage Sync)
 import {
   collection,
   addDoc,
   getDocs,
   query,
   where,
-  orderBy,
   updateDoc,
   doc,
-  getDoc
+  getDoc,
+  setDoc
 } from 'firebase/firestore';
-import { db, isFirebaseConfigured } from '../config/firebaseConfig';
+import { db, isFirebaseConfigured } from '../config/firebaseConfig.js';
 
 const LOCAL_ORDERS_KEY = 'novashop_user_orders';
 
-const DEFAULT_ORDERS = [
-  {
-    id: 'NV-82914',
-    orderId: 'NV-82914',
-    date: 'May 10, 2026',
-    total: 413.07,
-    totalAmount: 413.07,
-    status: 'In Transit',
-    statusColor: 'text-violet-600 bg-violet-50 dark:bg-violet-950/40',
-    step: 3,
-    items: [
-      { id: 'p1', name: 'Air Max 270 React', quantity: 1, qty: 1, price: 129.99, image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&auto=format&fit=crop&q=80', img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&auto=format&fit=crop&q=80' },
-      { id: 'p2', name: 'Chanel Chance Eau Tendre EDP', quantity: 1, qty: 1, price: 135.00, image: 'https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?w=150&auto=format&fit=crop&q=80', img: 'https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?w=150&auto=format&fit=crop&q=80' },
-      { id: 'p3', name: 'Minimalist Shoulder Bag', quantity: 1, qty: 1, price: 79.00, image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=150&auto=format&fit=crop&q=80', img: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=150&auto=format&fit=crop&q=80' },
-    ],
-    shippingInfo: {
-      fullName: 'Alina Putri',
-      name: 'Alina Putri',
-      address: '42 Orchid Boulevard, Suite 300',
-      city: 'San Francisco',
-      state: 'CA',
-      zip: '94107',
-      email: 'alina.putri@novashop.com'
-    }
-  },
-  {
-    id: 'NV-79402',
-    orderId: 'NV-79402',
-    date: 'April 22, 2026',
-    total: 349.99,
-    totalAmount: 349.99,
-    status: 'Delivered',
-    statusColor: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40',
-    step: 4,
-    items: [
-      { id: 'p4', name: 'Sony WH-1000XM5 Wireless Headphones', quantity: 1, qty: 1, price: 349.99, image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=150&auto=format&fit=crop&q=80', img: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=150&auto=format&fit=crop&q=80' },
-    ],
-    shippingInfo: {
-      fullName: 'Alina Putri',
-      name: 'Alina Putri',
-      address: '42 Orchid Boulevard, Suite 300',
-      city: 'San Francisco',
-      state: 'CA',
-      zip: '94107',
-      email: 'alina.putri@novashop.com'
-    }
-  }
-];
-
-const getStoredOrders = () => {
+export const getStoredOrders = () => {
   try {
     const data = localStorage.getItem(LOCAL_ORDERS_KEY);
     if (!data) {
-      localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(DEFAULT_ORDERS));
-      return DEFAULT_ORDERS;
+      return [];
     }
     return JSON.parse(data);
   } catch {
-    return DEFAULT_ORDERS;
+    return [];
   }
 };
 
-const saveStoredOrders = (orders) => {
+export const saveStoredOrders = (orders) => {
   try {
     localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(orders));
   } catch (err) {
@@ -84,11 +34,14 @@ const saveStoredOrders = (orders) => {
   }
 };
 
-// ১. নতুন অর্ডার তৈরি করা
+// ১. নতুন অর্ডার তৈরি ও Firestore-এ সংরক্ষণ
 export const createOrder = async (userId, cartItems, shippingInfo, paymentMethod, totals = {}) => {
   try {
     const orderId = `NV-${Math.floor(100000 + Math.random() * 900000)}`;
-    const subtotal = totals.subtotal || cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const subtotal = totals.subtotal || cartItems.reduce((sum, item) => {
+      const p = item.product || item;
+      return sum + ((p.price || 0) * (item.quantity || 1));
+    }, 0);
     const shipping = totals.shipping !== undefined ? totals.shipping : (subtotal > 150 ? 0 : 15);
     const totalAmount = totals.total || (subtotal + shipping);
 
@@ -128,26 +81,27 @@ export const createOrder = async (userId, cartItems, shippingInfo, paymentMethod
         zip: shippingInfo.zip || shippingInfo.postalCode || ''
       },
       paymentMethod: paymentMethod || 'card',
-      subtotal: subtotal,
-      shippingCharge: shipping,
-      total: totalAmount,
-      totalAmount: totalAmount,
+      subtotal: Number(subtotal),
+      shippingCharge: Number(shipping),
+      total: Number(totalAmount),
+      totalAmount: Number(totalAmount),
       status: 'Processing',
       statusColor: 'text-violet-600 bg-violet-50 dark:bg-violet-950/40',
       step: 2
     };
 
-    // Save locally first for instant user view
+    // Save locally first for instant, guaranteed offline/online UI sync
     const localOrders = getStoredOrders();
-    const updated = [orderData, ...localOrders];
+    const updated = [orderData, ...localOrders.filter(o => o.id !== orderId)];
     saveStoredOrders(updated);
 
-    // Save to Firestore if configured
+    // Save to Firestore Database
     if (isFirebaseConfigured && db) {
       try {
-        await addDoc(collection(db, 'orders'), orderData);
+        await setDoc(doc(db, 'orders', orderId), orderData);
+        console.info(`✅ NovaShop: Order #${orderId} saved to Firestore successfully`);
       } catch (err) {
-        console.warn('Could not save order to Firestore, cached locally:', err.message);
+        console.warn('Firestore order save note (cached locally):', err.message);
       }
     }
 
@@ -166,34 +120,49 @@ export const createOrder = async (userId, cartItems, shippingInfo, paymentMethod
   }
 };
 
-// ২. ব্যবহারকারীর সব অর্ডার লোড করা
+// ২. ব্যবহারকারীর সব অর্ডার লোড করা (Firestore + Local fallback)
 export const getUserOrders = async (userId) => {
   try {
-    let ordersList = [];
+    let firestoreOrders = [];
 
-    if (isFirebaseConfigured && db && userId) {
+    if (isFirebaseConfigured && db && userId && userId !== 'guest') {
       try {
         const q = query(
           collection(db, 'orders'),
-          where('userId', '==', userId),
-          orderBy('createdAt', 'desc')
+          where('userId', '==', userId)
         );
         const querySnapshot = await getDocs(q);
         querySnapshot.forEach((docSnap) => {
-          ordersList.push({ id: docSnap.id, ...docSnap.data() });
+          firestoreOrders.push({ id: docSnap.id, ...docSnap.data() });
         });
       } catch (err) {
-        console.warn('Firestore query failed, using local orders:', err.message);
+        console.warn('Firestore query notice, using local orders:', err.message);
       }
     }
 
-    if (!ordersList.length) {
-      ordersList = getStoredOrders();
-    }
+    const local = getStoredOrders();
+    const relevantLocal = (userId && userId !== 'guest')
+      ? local.filter(ord => ord.userId === userId)
+      : local;
+    
+    // Merge Firestore orders with local orders (avoiding duplicates)
+    const orderMap = new Map();
+    [...firestoreOrders, ...relevantLocal].forEach(ord => {
+      const key = ord.id || ord.orderId;
+      if (key && !orderMap.has(key)) {
+        orderMap.set(key, ord);
+      }
+    });
+
+    const combined = Array.from(orderMap.values()).sort((a, b) => {
+      const timeA = new Date(a.createdAt || a.date || 0).getTime();
+      const timeB = new Date(b.createdAt || b.date || 0).getTime();
+      return timeB - timeA;
+    });
 
     return {
       success: true,
-      orders: ordersList
+      orders: combined.length ? combined : local
     };
   } catch (error) {
     console.error('Error fetching orders:', error);
@@ -208,16 +177,20 @@ export const getUserOrders = async (userId) => {
 // ৩. নির্দিষ্ট অর্ডারের তথ্য দেখা
 export const getOrderById = async (orderId) => {
   try {
+    if (isFirebaseConfigured && db) {
+      try {
+        const docSnap = await getDoc(doc(db, 'orders', orderId));
+        if (docSnap.exists()) {
+          return { success: true, order: { id: docSnap.id, ...docSnap.data() } };
+        }
+      } catch (e) {
+        console.warn('Firestore getOrderById error:', e.message);
+      }
+    }
+
     const local = getStoredOrders().find(o => o.id === orderId || o.orderId === orderId);
     if (local) {
       return { success: true, order: local };
-    }
-
-    if (isFirebaseConfigured && db) {
-      const docSnap = await getDoc(doc(db, 'orders', orderId));
-      if (docSnap.exists()) {
-        return { success: true, order: { id: docSnap.id, ...docSnap.data() } };
-      }
     }
 
     return { success: false, error: 'Order not found' };
@@ -245,13 +218,17 @@ export const cancelOrder = async (orderId, reason = '') => {
     saveStoredOrders(updated);
 
     if (isFirebaseConfigured && db) {
-      await updateDoc(doc(db, 'orders', orderId), {
-        status: 'Cancelled',
-        cancelReason: reason
-      });
+      try {
+        await updateDoc(doc(db, 'orders', orderId), {
+          status: 'Cancelled',
+          cancelReason: reason
+        });
+      } catch (err) {
+        console.warn('Firestore order cancel notice:', err.message);
+      }
     }
 
-    return { success: true, message: 'Order has been cancelled' };
+    return { success: true, message: 'অর্ডার সফলভাবে বাতিল করা হয়েছে' };
   } catch (error) {
     return { success: false, error: error.message };
   }

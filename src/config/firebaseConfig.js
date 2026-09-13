@@ -4,22 +4,14 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
-const getEnvVar = (viteKey, legacyKey) => {
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[viteKey]) {
-    return import.meta.env[viteKey];
-  }
-  if (typeof process !== 'undefined' && process.env && process.env[legacyKey]) {
-    return process.env[legacyKey];
-  }
-  return '';
-};
-
-const apiKey = getEnvVar('VITE_FIREBASE_API_KEY', 'REACT_APP_FIREBASE_API_KEY');
-const authDomain = getEnvVar('VITE_FIREBASE_AUTH_DOMAIN', 'REACT_APP_FIREBASE_AUTH_DOMAIN');
-const projectId = getEnvVar('VITE_FIREBASE_PROJECT_ID', 'REACT_APP_FIREBASE_PROJECT_ID');
-const storageBucket = getEnvVar('VITE_FIREBASE_STORAGE_BUCKET', 'REACT_APP_FIREBASE_STORAGE_BUCKET');
-const messagingSenderId = getEnvVar('VITE_FIREBASE_MESSAGING_SENDER_ID', 'REACT_APP_FIREBASE_MESSAGING_SENDER_ID');
-const appId = getEnvVar('VITE_FIREBASE_APP_ID', 'REACT_APP_FIREBASE_APP_ID');
+// Static import.meta.env access is required by Vite for production bundling
+const apiKey = import.meta.env?.VITE_FIREBASE_API_KEY || (typeof process !== 'undefined' ? process.env?.REACT_APP_FIREBASE_API_KEY : '') || '';
+const authDomain = import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN || (typeof process !== 'undefined' ? process.env?.REACT_APP_FIREBASE_AUTH_DOMAIN : '') || '';
+const projectId = import.meta.env?.VITE_FIREBASE_PROJECT_ID || (typeof process !== 'undefined' ? process.env?.REACT_APP_FIREBASE_PROJECT_ID : '') || '';
+const storageBucket = import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET || (typeof process !== 'undefined' ? process.env?.REACT_APP_FIREBASE_STORAGE_BUCKET : '') || '';
+const messagingSenderId = import.meta.env?.VITE_FIREBASE_MESSAGING_SENDER_ID || (typeof process !== 'undefined' ? process.env?.REACT_APP_FIREBASE_MESSAGING_SENDER_ID : '') || '';
+const appId = import.meta.env?.VITE_FIREBASE_APP_ID || (typeof process !== 'undefined' ? process.env?.REACT_APP_FIREBASE_APP_ID : '') || '';
+const measurementId = import.meta.env?.VITE_FIREBASE_MEASUREMENT_ID || '';
 
 export const isFirebaseConfigured = Boolean(
   apiKey && 
@@ -42,7 +34,8 @@ if (isFirebaseConfigured) {
           projectId,
           storageBucket,
           messagingSenderId,
-          appId
+          appId,
+          ...(measurementId ? { measurementId } : {})
         })
       : getApp();
 

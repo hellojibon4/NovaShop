@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Mail, Phone, MapPin, Send, MessageSquare, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { sendMessage } from '../services/messageService';
 import { useAuth } from '../context/AuthContext';
@@ -58,14 +59,15 @@ export default function Contact() {
     <div className="space-y-8 max-w-6xl mx-auto py-2">
       {/* Hero Header */}
       <div className="text-center space-y-3">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-violet-100 dark:bg-violet-950/50 text-violet-600 dark:text-violet-400">
-          <MessageSquare className="w-6 h-6" />
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-100 dark:bg-violet-950/50 text-violet-600 dark:text-violet-400 text-xs font-bold">
+          <MessageSquare className="w-3.5 h-3.5" />
+          <span>24/7 Support Center</span>
         </div>
         <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-          We'd Love to Hear From You
+          Customer Support & Help Center
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xl mx-auto">
-          Have questions about your order, returns, or our catalog? Our support team is ready to assist you 24/7.
+          Have questions about your order, tracking, returns, or catalog? Our support team is ready to assist you 24/7.
         </p>
       </div>
 
@@ -121,12 +123,12 @@ export default function Contact() {
             <p className="text-xs text-violet-100 leading-relaxed mb-4">
               Need immediate tracking update on an existing order? Check our real-time tracking tracker directly.
             </p>
-            <a
-              href="/orders"
+            <Link
+              to="/orders"
               className="inline-block py-2.5 px-4 bg-white text-violet-700 rounded-xl text-xs font-bold shadow-md hover:bg-violet-50 transition-colors"
             >
               Track Active Orders →
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -164,7 +166,7 @@ export default function Contact() {
                     required
                     value={formData.name}
                     onChange={handleChange}
-                    placeholder="Alina Putri"
+                    placeholder="Your Full Name"
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
                   />
                 </div>
@@ -178,7 +180,7 @@ export default function Contact() {
                     required
                     value={formData.email}
                     onChange={handleChange}
-                    placeholder="alina@example.com"
+                    placeholder="you@example.com"
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
                   />
                 </div>

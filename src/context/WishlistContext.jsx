@@ -7,18 +7,34 @@ export function WishlistProvider({ children }) {
   const [wishlist, setWishlist] = useState(() => {
     try {
       const saved = localStorage.getItem('novashop_wishlist');
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) return JSON.parse(saved);
+      const hasVisited = localStorage.getItem('novashop_visited');
+      if (hasVisited) return [];
+      return [
+        products.find(p => p.id === 'apple-watch-series-9') || products[1],
+        products.find(p => p.id === 'sony-wh-1000xm5') || products[3]
+      ].filter(Boolean);
     } catch {
-      // fallback
+      return [];
     }
-    // Default 2 items in wishlist for realistic showcase
-    return [
-      products.find(p => p.id === 'apple-watch-series-9') || products[1],
-      products.find(p => p.id === 'sony-wh-1000xm5') || products[3]
-    ].filter(Boolean);
   });
 
   const [toastMessage, setToastMessage] = useState(null);
+
+  // Listen for global logout event to purge wishlist immediately
+  useEffect(() => {
+    const handleLogout = () => {
+      setWishlist([]);
+      try {
+        localStorage.removeItem('novashop_wishlist');
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener('novashop:logout', handleLogout);
+    return () => window.removeEventListener('novashop:logout', handleLogout);
+  }, []);
 
   useEffect(() => {
     try {
@@ -53,6 +69,15 @@ export function WishlistProvider({ children }) {
     setWishlist(prev => prev.filter(item => item.id !== productId));
   };
 
+  const clearWishlist = () => {
+    setWishlist([]);
+    try {
+      localStorage.removeItem('novashop_wishlist');
+    } catch {
+      // ignore
+    }
+  };
+
   return (
     <WishlistContext.Provider
       value={{
@@ -60,6 +85,7 @@ export function WishlistProvider({ children }) {
         isInWishlist,
         toggleWishlist,
         removeFromWishlist,
+        clearWishlist,
         wishlistCount: wishlist.length,
         toastMessage
       }}
